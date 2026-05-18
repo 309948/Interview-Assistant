@@ -9,18 +9,18 @@ export interface ElectronAPI {
   processImage: (imagePath: string) => Promise<string>;
   highlightCode: (code: string, language: string) => Promise<string>;
   getSystemAudioStream: () => Promise<string[]>;
-  ipcRenderer: {
-    removeAllListeners: any;
-    invoke(channel: string, ...args: any[]): Promise<any>;
-    on(channel: string, listener: (event: any, ...args: any[]) => void): void;
-    removeListener(channel: string, listener: (...args: any[]) => void): void;
-  };
   callOpenAI: (params: {
     config: any;
     messages: any[];
     signal?: AbortSignal;
   }) => Promise<{ content: string } | { error: string }>;
   transcribeAudio: (audioBuffer: ArrayBuffer, config: any) => Promise<TranscriptionResult>;
+  startDeepgram: (config: { deepgram_key: string; primaryLanguage?: string }) => Promise<{ success: boolean; error?: string }>;
+  sendAudioToDeepgram: (audioBuffer: ArrayBuffer) => Promise<void>;
+  stopDeepgram: () => Promise<void>;
+  onDeepgramTranscript: (listener: (data: any) => void) => () => void;
+  onDeepgramStatus: (listener: (data: any) => void) => () => void;
+  onDeepgramError: (listener: (data: any) => void) => () => void;
 }
 
 declare global {

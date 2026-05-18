@@ -34,7 +34,8 @@ const createWindow = (): void => {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false,
+      webSecurity: true,
+      sandbox: true,
     },
   });
 
@@ -44,7 +45,7 @@ const createWindow = (): void => {
         responseHeaders: {
           ...details.responseHeaders,
           "Content-Security-Policy": [
-            "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'self' https://api.openai.com;",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
           ],
         },
       });
@@ -53,7 +54,7 @@ const createWindow = (): void => {
 
   mainWindow.webContents.session.setPermissionRequestHandler(
     (webContents, permission, callback) => {
-      if (permission === "media") {
+      if (permission === "media" && webContents.id === mainWindow.webContents.id) {
         callback(true);
       } else {
         callback(false);
@@ -61,14 +62,15 @@ const createWindow = (): void => {
     }
   );
 
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (url !== mainWindow.webContents.getURL()) {
+      event.preventDefault();
+    }
+  });
+
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY + "#/main_window");
 //  mainWindow.webContents.openDevTools();
-
-  mainWindow.webContents.on("did-finish-load", () => {
-    mainWindow.webContents.executeJavaScript(`
-      console.log('Applied CSP:', document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content'));
-    `);
-  });
 };
 
 ipcMain.handle(
@@ -153,7 +155,17 @@ app.on("activate", () => {
 import ElectronStore from "electron-store";
 
 interface StoreSchema {
-  config: Record<string, any>;
+  config: AppConfig;
+}
+
+interface AppConfig {
+  openai_key: string;
+  api_base: string;
+  gpt_model: string;
+  api_call_method: "direct" | "proxy";
+  primaryLanguage: string;
+  secondaryLanguage: string;
+  deepgram_api_key: string;
 }
 
 type TypedElectronStore = ElectronStore<StoreSchema> & {
@@ -164,12 +176,38 @@ type TypedElectronStore = ElectronStore<StoreSchema> & {
 
 const store = new ElectronStore<StoreSchema>() as TypedElectronStore;
 
+function toSafeString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function sanitizeConfig(config: unknown): AppConfig {
+  const source =
+    config && typeof config === "object"
+      ? (config as Record<string, unknown>)
+      : {};
+  const apiCallMethod =
+    source.api_call_method === "proxy" ? "proxy" : "direct";
+
+  return {
+    openai_key: toSafeString(source.openai_key),
+    api_base: toSafeString(source.api_base),
+    gpt_model: toSafeString(source.gpt_model) || "gpt-4o",
+    api_call_method: apiCallMethod,
+    primaryLanguage: toSafeString(source.primaryLanguage) || "auto",
+    secondaryLanguage: toSafeString(source.secondaryLanguage),
+    deepgram_api_key: toSafeString(source.deepgram_api_key),
+  };
+}
+
+const DEFAULT_API_BASE_URL = "https://api.openai.com/v1";
+const ALLOWED_HTTP_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
 ipcMain.handle("get-config", () => {
-  return store.get("config");
+  return sanitizeConfig(store.get("config"));
 });
 
 ipcMain.handle("set-config", (event, config) => {
-  store.set("config", config);
+  store.set("config", sanitizeConfig(config));
 });
 
 ipcMain.handle("parsePDF", async (event, pdfBuffer) => {
@@ -209,14 +247,10 @@ ipcMain.handle("highlightCode", async (event, code, language) => {
 });
 
 app.on("before-quit", () => {
-  const config = store.get("config") || {};
-  const apiInfo = {
-    openai_key: config.openai_key || "",
-    api_base: config.api_base || "",
-    gpt_model: config.gpt_model || "",
-    api_call_method: config.api_call_method || "direct",
+  const config = sanitizeConfig(store.get("config"));
+  const apiInfo: AppConfig = {
+    ...config,
     primaryLanguage: config.primaryLanguage || "en",
-    deepgram_api_key: config.deepgram_api_key || "",
   };
   store.clear();
   store.set("config", apiInfo);
@@ -397,15 +431,30 @@ ipcMain.handle("get-desktop-sources", async () => {
 });
 
 function normalizeApiBaseUrl(url: string): string {
-  if (!url) return "https://api.openai.com/v1";
-  url = url.trim();
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    url = "https://" + url;
+  if (!url) return DEFAULT_API_BASE_URL;
+  const normalizedInput = url.trim();
+  const urlWithProtocol = /^https?:\/\//i.test(normalizedInput)
+    ? normalizedInput
+    : `https://${normalizedInput}`;
+  const parsedUrl = new URL(urlWithProtocol);
+  const isLocalHttp =
+    parsedUrl.protocol === "http:" && ALLOWED_HTTP_HOSTS.has(parsedUrl.hostname);
+
+  if (parsedUrl.protocol !== "https:" && !isLocalHttp) {
+    throw new Error("Only HTTPS API URLs are allowed. HTTP is only allowed for localhost.");
   }
-  if (!url.endsWith("/v1")) {
-    url = url.endsWith("/") ? url + "v1" : url + "/v1";
+
+  const pathWithoutTrailingSlash = parsedUrl.pathname.replace(/\/+$/, "");
+  if (!pathWithoutTrailingSlash || pathWithoutTrailingSlash === "/") {
+    parsedUrl.pathname = "/v1";
+  } else if (!pathWithoutTrailingSlash.endsWith("/v1")) {
+    parsedUrl.pathname = `${pathWithoutTrailingSlash}/v1`;
+  } else {
+    parsedUrl.pathname = pathWithoutTrailingSlash;
   }
-  return url;
+  parsedUrl.search = "";
+  parsedUrl.hash = "";
+  return `${parsedUrl.origin}${parsedUrl.pathname}`;
 }
 
 let deepgramConnection: any = null;

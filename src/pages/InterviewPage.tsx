@@ -118,7 +118,7 @@ const InterviewPage: React.FC = () => {
     let lastTranscriptTime = Date.now();
     let checkTimer: NodeJS.Timeout | null = null;
 
-    const handleDeepgramTranscript = (_event: any, data: any) => {
+    const handleDeepgramTranscript = (data: any) => {
       if (data.transcript && data.is_final) {
         setCurrentText((prev: string) => {
           const newTranscript = data.transcript.trim();
@@ -156,11 +156,11 @@ const InterviewPage: React.FC = () => {
       checkTimer = setTimeout(checkAndSubmit, 1000);
     };
 
-    window.electronAPI.ipcRenderer.on('deepgram-transcript', handleDeepgramTranscript);
+    const unsubscribeDeepgramTranscript = window.electronAPI.onDeepgramTranscript(handleDeepgramTranscript);
     checkTimer = setTimeout(checkAndSubmit, 1000);
 
     return () => {
-      window.electronAPI.ipcRenderer.removeListener('deepgram-transcript', handleDeepgramTranscript);
+      unsubscribeDeepgramTranscript();
       if (checkTimer) {
         clearTimeout(checkTimer);
       }
@@ -193,8 +193,9 @@ const InterviewPage: React.FC = () => {
       setUserMedia(stream);
 
       const config = await window.electronAPI.getConfig();
-      const result = await window.electronAPI.ipcRenderer.invoke('start-deepgram', {
-        deepgram_key: config.deepgram_api_key
+      const result = await window.electronAPI.startDeepgram({
+        deepgram_key: config.deepgram_api_key,
+        primaryLanguage: config.primaryLanguage,
       });
       if (!result.success) {
         throw new Error(result.error);
@@ -215,7 +216,7 @@ const InterviewPage: React.FC = () => {
         for (let i = 0; i < inputData.length; i++) {
           audioData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
         }
-        window.electronAPI.ipcRenderer.invoke('send-audio-to-deepgram', audioData.buffer);
+        window.electronAPI.sendAudioToDeepgram(audioData.buffer);
       };
 
       setIsRecording(true);
@@ -234,7 +235,7 @@ const InterviewPage: React.FC = () => {
     if (processor) {
       processor.disconnect();
     }
-    window.electronAPI.ipcRenderer.invoke('stop-deepgram');
+    window.electronAPI.stopDeepgram();
     setIsRecording(false);
     setUserMedia(null);
     setAudioContext(null);
