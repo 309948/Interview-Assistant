@@ -1,75 +1,74 @@
 <div align="right">
-  <a href="#interview-assistant-中文">中文</a> | <a href="#interview-assistant-english">English</a>
+  <a href="#interview-assistant-español">Español</a> | <a href="#interview-assistant-english">English</a>
 </div>
 
-# interview-assistant-中文
+# interview-assistant-español
 
-Interview Assistant 是一款基于 Electron 的应用，可以捕获系统音频，并提供面试中回答建议。
+Interview Assistant es una aplicación basada en Electron que captura audio del sistema y proporciona sugerencias de respuesta en tiempo real para entrevistas.
 
-## 为什么是Interview Assistant
+## Por qué Interview Assistant
 
-1. **实时语音转文字**: 利用 Deepgram API 实现实时语音识别。
-2. **智能 GPT 回答**: 集成 OpenAI 的 GPT 模型，为面试问题提供即时、智能的回答建议。(支持带转发地址的第三方API)
-3. **内容管理**: 用户可以上传自己的文件，包括文本、图片和 PDF 文件，和你自己定制的提示词，可以极大的定制你想要GPT回应的风格，这些资料将用于个性化 GPT 的回答。
-4. **统一上下文**: 在实时回答页面中，对话基于知识页面的配置，都在同一个上下文中进行，确保回答的连贯性和相关性。
-5. **跨平台支持**: 作为 Electron 应用，可以在 Windows、macOS系统上运行。
+1. **Conversión de voz a texto en tiempo real**: Utiliza Deepgram API para reconocimiento de voz en tiempo real.
+2. **Respuestas inteligentes con GPT**: Integra el modelo GPT de OpenAI para proporcionar sugerencias de respuesta inteligentes e instantáneas para preguntas de entrevista. (Soporta API de terceros con direcciones de reenvío)
+3. **Gestión de contenidos**: Los usuarios pueden cargar sus propios archivos, incluidos textos, imágenes y archivos PDF, junto con indicaciones personalizadas, personalizando enormemente el estilo de las respuestas de GPT. Estos materiales se utilizarán para personalizar las respuestas de GPT.
+4. **Contexto unificado**: En la página de respuesta en tiempo real, las conversaciones se basan en la configuración de la página de conocimiento, todo dentro del mismo contexto, asegurando la coherencia y relevancia de las respuestas.
+5. **Soporte multiplataforma**: Como aplicación Electron, puede ejecutarse en sistemas Windows y macOS.
 
-## 演示
+## Demostración
 
-[Interview Assistant 演示视频](https://github.com/user-attachments/assets/3b42cc96-1b67-48e1-b40c-dbd78c328f1b)
+[Video de demostración de Interview Assistant](https://github.com/user-attachments/assets/3b42cc96-1b67-48e1-b40c-dbd78c328f1b)
 
-点击上方链接查看演示视频
+Haga clic en el enlace anterior para ver el video de demostración.
 
-## 与其他工具的对比
+## Comparación con otras herramientas
 
-Interview Assistant 相比其他面试辅助工具有以下优势：
+Interview Assistant tiene las siguientes ventajas en comparación con otras herramientas de asistencia para entrevistas:
 
-1. **实时语音识别**: 利用 Deepgram API(新用户有200美元额度)，我们提供比传统语音识别更快、更准确的实时转录。
-2. **个性化知识库**: 用户可以上传自己的简历、个人信息等文档，GPT 模型会基于这些信息提供更加个性化的回答建议。
-3. **跨平台支持**: 作为 Electron 应用，支持 Windows、macOS。
-4. **隐私保护**: 所有数据都在本地处理，不会上传到云端，保护用户的隐私信息。
-5. **开源透明**: 我的代码完全开源，可以自由查看、修改和贡献。
+1. **Reconocimiento de voz en tiempo real**: Utilizando Deepgram API (los nuevos usuarios obtienen crédito de $200), proporcionamos transcripción en tiempo real más rápida y precisa que el reconocimiento de voz tradicional.
+2. **Base de conocimiento personalizada**: Los usuarios pueden cargar sus propios currículums, información personal y otros documentos. El modelo GPT proporcionará sugerencias de respuesta más personalizadas basadas en esta información.
+3. **Soporte multiplataforma**: Como aplicación Electron, compatible con Windows y macOS.
+4. **Protección de privacidad**: Todos los datos se procesan localmente y no se cargan en la nube, protegiendo la información privada de los usuarios.
+5. **Transparencia de código abierto**: Nuestro código es completamente de código abierto, libre de ver, modificar y contribuir.
 
-下面是 Interview Assistant 与其他面试辅助工具的功能对比表：
+A continuación se muestra una tabla de comparación de características de Interview Assistant con otras herramientas de asistencia para entrevistas:
 
-|                                                      | Windows | Mac  | 个性定制prompt/上传个人文件 |
-| ---------------------------------------------------- | ------- | ---- | ----------- |
-| [cheetah](https://github.com/leetcode-mafia/cheetah) |         | ✅    |             |
-| [ecoute](https://github.com/SevaSk/ecoute)           | ✅       |      |             |
-| Interview Copilot                                    | ✅       | ✅    | ✅          |
+|                                                      | Windows | Mac  | Indicaciones personalizadas/Carga de archivos personales |
+| ---------------------------------------------------- | ------- | ---- | -------------------------------------------------------- |
+| [cheetah](https://github.com/leetcode-mafia/cheetah) |         | ✅    |                                                          |
+| [ecoute](https://github.com/SevaSk/ecoute)           | ✅       |      |                                                          |
+| Interview Assistant                                  | ✅       | ✅    | ✅                                                        |
 
+Esta tabla de comparación muestra claramente las ventajas de Interview Assistant en comparación con otras herramientas, especialmente en términos de soporte multiplataforma e indicaciones personalizadas.
 
-这个对比表格清晰地展示了 Interview Assistant 相比其他工具的优势，特别是跨平台和定制prompt。
+## Instalación y uso
 
-## 安装和使用
+1. Descargue el paquete de instalación adecuado para su sistema operativo desde la página Release.
+2. Ejecute Interview Assistant.
+3. Configure su clave API de OpenAI y su clave API de Deepgram en la página de configuración.
+4. Comience a utilizar la función de asistencia para entrevistas en tiempo real o administre su base de conocimiento.
 
-1. 从 Release 页面下载适合您操作系统的安装包。
-2. 运行 Interview Assistant。
-3. 在设置页面配置您的 OpenAI API 密钥和 Deepgram API 密钥。
-4. 开始使用实时面试辅助功能或管理您的知识库。
+## Instrucciones de configuración
 
-## 配置说明
+Para utilizar Interview Assistant, necesita:
 
-要使用 Interview Assistant，您需要：
-
-1. OpenAI API 密钥: 可以从 https://platform.openai.com 获取，或者可以购买第三方带有转发地址的API也同样支持，记得选择转发的复选框，配置完成后可以点击测试按钮进行测试。
-2. Deepgram API 密钥: 请访问 https://deepgram.com 注册并获取，新用户有200美元的免费额度，首页教程简单。
+1. **Clave API de OpenAI**: Se puede obtener de https://platform.openai.com, o puede comprar una API de terceros con una dirección de reenvío que también se admite. Recuerde seleccionar la casilla de reenvío y puede hacer clic en el botón de prueba para verificar después de la configuración.
+2. **Clave API de Deepgram**: Visite https://deepgram.com para registrarse y obtener. Los nuevos usuarios obtienen $200 de crédito gratuito y el tutorial de la página de inicio es simple.
 
 ![image-20240919163506505](https://cdn.jsdelivr.net/gh/filifili233/blogimg@master/uPic/image-20240919163506505.png)
 
-## 开发
+## Desarrollo
 
-本项目基于 Electron 和 React 开发。请按以下步骤操作：
+Este proyecto se desarrolla basado en Electron y React. Siga estos pasos:
 
-1. 克隆仓库: `git clone https://github.com/nohairblingbling/Interview-Assistant`
-2. 安装依赖: `npm install`
-3. 安装 Electron: `npm install electron`
-4. 启动开发服务器: `npm start`
-5. 构建应用: `npm run make`
+1. Clonar el repositorio: `git clone https://github.com/nohairblingbling/Interview-Assistant`
+2. Instalar dependencias: `pnpm install`
+3. Instalar Electron: `npm install electron`
+4. Iniciar el servidor de desarrollo: `npm start`
+5. Construir la aplicación: `npm run make`
 
-## 许可证
+## Licencia
 
-本项目采用 MIT 许可证。详情请见 LICENSE 文件。
+Este proyecto está bajo la Licencia MIT. Consulte el archivo LICENSE para más detalles.
 
 ---
 
@@ -89,7 +88,7 @@ Interview Assistant is an Electron-based application that captures system audio 
 
 [Interview Assistant Demo Video](https://github.com/user-attachments/assets/3b42cc96-1b67-48e1-b40c-dbd78c328f1b)
 
-Click the link above to view the demo video
+Click the link above to view the demo video.
 
 ## Comparison with Other Tools
 
@@ -107,7 +106,7 @@ Below is a feature comparison table of Interview Assistant with other interview 
 | ---------------------------------------------------- | ------- | --- | ----------------------------------- |
 | [cheetah](https://github.com/leetcode-mafia/cheetah) |         | ✅   |                                     |
 | [ecoute](https://github.com/SevaSk/ecoute)           | ✅       |     |                                     |
-| Interview Copilot                                    | ✅       | ✅   | ✅                                   |
+| Interview Assistant                                  | ✅       | ✅   | ✅                                   |
 
 This comparison table clearly shows the advantages of Interview Assistant compared to other tools, especially in terms of cross-platform support and custom prompts.
 
@@ -122,8 +121,8 @@ This comparison table clearly shows the advantages of Interview Assistant compar
 
 To use Interview Assistant, you need:
 
-1. OpenAI API key: Can be obtained from https://platform.openai.com, or you can purchase a third-party API with a forwarding address which is also supported. Remember to select the forwarding checkbox, and you can click the test button to test after configuration.
-2. Deepgram API key: Please visit https://deepgram.com to register and obtain. New users get $200 free credit, and the homepage tutorial is simple.
+1. **OpenAI API key**: Can be obtained from https://platform.openai.com, or you can purchase a third-party API with a forwarding address which is also supported. Remember to select the forwarding checkbox, and you can click the test button to test after configuration.
+2. **Deepgram API key**: Please visit https://deepgram.com to register and obtain. New users get $200 free credit, and the homepage tutorial is simple.
 
 ![image-20240919163506505](https://cdn.jsdelivr.net/gh/filifili233/blogimg@master/uPic/image-20240919163506505.png)
 
@@ -132,7 +131,7 @@ To use Interview Assistant, you need:
 This project is developed based on Electron and React. Please follow these steps:
 
 1. Clone the repository: `git clone https://github.com/nohairblingbling/Interview-Assistant`
-2. Install dependencies: `npm install`
+2. Install dependencies: `pnpm install`
 3. Install Electron: `npm install electron`
 4. Start the development server: `npm start`
 5. Build the application: `npm run make`
