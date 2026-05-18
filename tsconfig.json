@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "jsx": "react-jsx", // 或 "react"
+    "jsx": "react-jsx",
     "target": "ES6",
     "allowJs": true,
     "module": "commonjs",
