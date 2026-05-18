@@ -3,7 +3,26 @@ import type { Configuration } from 'webpack';
 import { rules } from './webpack.rules';
 import { plugins } from './webpack.plugins';
 
-rules.push({
+const rendererRules = rules.filter((rule) => {
+  if (typeof rule !== 'object' || rule === null) return true;
+
+  if ('use' in rule) {
+    if (rule.use === 'node-loader') return false;
+
+    if (
+      typeof rule.use === 'object' &&
+      rule.use !== null &&
+      'loader' in rule.use &&
+      rule.use.loader === '@vercel/webpack-asset-relocator-loader'
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+});
+
+rendererRules.push({
   test: /\.css$/,
   use: [
     { loader: 'style-loader' },
@@ -21,7 +40,7 @@ rules.push({
 
 export const rendererConfig: Configuration = {
   module: {
-    rules,
+    rules: rendererRules,
   },
   plugins,
   resolve: {

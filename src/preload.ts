@@ -1,6 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import fs from 'fs';
-import path from 'path';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getConfig: () => ipcRenderer.invoke('get-config'),
