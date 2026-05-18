@@ -21,12 +21,7 @@ const config: ForgeConfig = {
   rebuildConfig: {},
   makers: [
     new MakerZIP({}, ['darwin', 'win32']),
-    new MakerDMG({}),
-    {
-      name: '@electron-forge/maker-zip',
-      config: {},
-      platforms: ['win32']
-    }
+    new MakerDMG({})
   ],
   plugins: [
     new AutoUnpackNativesPlugin({}),
