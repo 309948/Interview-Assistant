@@ -27,6 +27,11 @@ if (electronSquirrelStartup) {
 }
 
 const createWindow = (): void => {
+  const isDevelopment = !app.isPackaged;
+  const contentSecurityPolicy = isDevelopment
+    ? "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: http://localhost:* ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
+    : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';";
+
   const mainWindow = new BrowserWindow({
     height: 1000,
     width: 1300,
@@ -45,7 +50,7 @@ const createWindow = (): void => {
         responseHeaders: {
           ...details.responseHeaders,
           "Content-Security-Policy": [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
+            contentSecurityPolicy,
           ],
         },
       });
