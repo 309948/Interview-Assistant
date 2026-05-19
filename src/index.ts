@@ -467,17 +467,20 @@ let deepgramConnection: any = null;
 ipcMain.handle("start-deepgram", async (event, config) => {
   try {
     if (!config.deepgram_key) {
-      throw new Error("Deepgram API key lose");
+      throw new Error("Deepgram API key is missing");
     }
+    const primaryLanguage = toSafeString(config.primaryLanguage);
     const deepgram = createClient(config.deepgram_key);
     deepgramConnection = deepgram.listen.live({
       punctuate: true,
       interim_results: false,
       model: "general",
-      language: config.primaryLanguage || "en",
       encoding: "linear16",
       sample_rate: 16000,
       endpointing: 1500,
+      ...(primaryLanguage && primaryLanguage !== "auto"
+        ? { language: primaryLanguage }
+        : {}),
     });
 
     deepgramConnection.addListener(LiveTranscriptionEvents.Open, () => {

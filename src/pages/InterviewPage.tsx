@@ -181,8 +181,23 @@ const InterviewPage: React.FC = () => {
   };
 
   const startRecording = async () => {
+    let stream: MediaStream | null = null;
+    let context: AudioContext | null = null;
+    let localProcessor: ScriptProcessorNode | null = null;
+
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
+      clearError();
+      const config = await window.electronAPI.getConfig();
+      if (!config?.deepgram_api_key?.trim()) {
+        throw new Error("Deepgram API key is missing. Configure it in Settings first.");
+      }
+
+      const selectedLanguage =
+        typeof config.primaryLanguage === "string"
+          ? config.primaryLanguage.trim()
+          : "";
+
+      stream = await navigator.mediaDevices.getDisplayMedia({
         video: false,
         audio: {
           echoCancellation: true,
@@ -192,25 +207,29 @@ const InterviewPage: React.FC = () => {
       });
       setUserMedia(stream);
 
-      const config = await window.electronAPI.getConfig();
       const result = await window.electronAPI.startDeepgram({
         deepgram_key: config.deepgram_api_key,
-        primaryLanguage: config.primaryLanguage,
+        primaryLanguage:
+          selectedLanguage && selectedLanguage !== "auto"
+            ? selectedLanguage
+            : undefined,
       });
       if (!result.success) {
-        throw new Error(result.error);
+        throw new Error(result.error || "Unable to connect to Deepgram.");
       }
 
-      const context = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      context = new (window.AudioContext || window.webkitAudioContext)({
+        sampleRate: 16000,
+      });
       setAudioContext(context);
       const source = context.createMediaStreamSource(stream);
-      const processor = context.createScriptProcessor(4096, 1, 1);
-      setProcessor(processor);
+      localProcessor = context.createScriptProcessor(4096, 1, 1);
+      setProcessor(localProcessor);
 
-      source.connect(processor);
-      processor.connect(context.destination);
+      source.connect(localProcessor);
+      localProcessor.connect(context.destination);
 
-      processor.onaudioprocess = (e: { inputBuffer: { getChannelData: (arg0: number) => any; }; }) => {
+      localProcessor.onaudioprocess = (e: { inputBuffer: { getChannelData: (arg0: number) => any; }; }) => {
         const inputData = e.inputBuffer.getChannelData(0);
         const audioData = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
@@ -220,8 +239,25 @@ const InterviewPage: React.FC = () => {
       };
 
       setIsRecording(true);
-    } catch (err: any) {
-      setError("Failed to start recording. Please check permissions or try again.");
+    } catch (err: unknown) {
+      if (localProcessor) {
+        localProcessor.disconnect();
+      }
+      if (context) {
+        context.close();
+      }
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      window.electronAPI.stopDeepgram();
+
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        setError("Screen/audio permission denied. Allow permissions and select a source with audio.");
+      } else if (err instanceof Error && err.message) {
+        setError(`Failed to start recording: ${err.message}`);
+      } else {
+        setError("Failed to start recording. Please check permissions or try again.");
+      }
     }
   };
 
