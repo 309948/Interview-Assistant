@@ -21,6 +21,16 @@ export interface ElectronAPI {
   onDeepgramTranscript: (listener: (data: any) => void) => () => void;
   onDeepgramStatus: (listener: (data: any) => void) => () => void;
   onDeepgramError: (listener: (data: any) => void) => () => void;
+  startM5Webhook: () => Promise<{ success: boolean; error?: string }>;
+  stopM5Webhook: () => Promise<{ success: boolean; error?: string }>;
+  getM5WebhookStatus: () => Promise<{
+    running: boolean;
+    enabled: boolean;
+    host: string;
+    port: number;
+  }>;
+  getLocalIP: () => Promise<string>;
+  onM5Action: (listener: (action: string) => void) => () => void;
 }
 
 declare global {

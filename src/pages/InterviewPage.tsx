@@ -288,6 +288,36 @@ const InterviewPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const unsubscribe = window.electronAPI.onM5Action((action: string) => {
+      switch (action) {
+        case 'start_recording':
+          if (isRecording) {
+            stopRecording();
+          } else {
+            startRecording();
+          }
+          break;
+        case 'ask_gpt':
+          handleAskGPT();
+          break;
+        case 'clear_content':
+          setCurrentText('');
+          setLastProcessedIndex(0);
+          break;
+        case 'clear_ai_result':
+          setDisplayedAiResult('');
+          break;
+        default:
+          console.warn('Unknown M5 action:', action);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isRecording, displayedAiResult, currentText, lastProcessedIndex]);
+
+  useEffect(() => {
     if (aiResponseRef.current) {
       aiResponseRef.current.scrollTop = aiResponseRef.current.scrollHeight;
     }

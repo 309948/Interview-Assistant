@@ -30,4 +30,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('deepgram-error', wrappedListener);
     return () => ipcRenderer.removeListener('deepgram-error', wrappedListener);
   },
+  startM5Webhook: () => ipcRenderer.invoke('m5webhook-start'),
+  stopM5Webhook: () => ipcRenderer.invoke('m5webhook-stop'),
+  getM5WebhookStatus: () => ipcRenderer.invoke('m5webhook-get-status'),
+  getLocalIP: () => ipcRenderer.invoke('get-local-ip'),
+  onM5Action: (listener: (action: string) => void) => {
+    const wrappedListener = (_event: Electron.IpcRendererEvent, action: string) => listener(action);
+    ipcRenderer.on('m5-action', wrappedListener);
+    return () => ipcRenderer.removeListener('m5-action', wrappedListener);
+  },
 });

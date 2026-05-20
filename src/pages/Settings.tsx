@@ -14,9 +14,14 @@ const Settings: React.FC = () => {
   const [primaryLanguage, setPrimaryLanguage] = useState('auto');
   const [secondaryLanguage, setSecondaryLanguage] = useState('');
   const [deepgramApiKey, setDeepgramApiKey] = useState('');
+  const [m5WebhookEnabled, setM5WebhookEnabled] = useState(false);
+  const [m5WebhookRunning, setM5WebhookRunning] = useState(false);
+  const [localIP, setLocalIP] = useState('');
+  const [m5StatusMessage, setM5StatusMessage] = useState('');
 
   useEffect(() => {
     loadConfig();
+    loadM5WebhookStatus();
   }, []);
 
   const loadConfig = async () => {
@@ -32,6 +37,51 @@ const Settings: React.FC = () => {
     } catch (err) {
       console.error('Failed to load configuration', err);
       setError('Failed to load configuration. Please check your settings.');
+    }
+  };
+
+  const loadM5WebhookStatus = async () => {
+    try {
+      const status = await window.electronAPI.getM5WebhookStatus();
+      setM5WebhookEnabled(status.enabled);
+      setM5WebhookRunning(status.running);
+      if (status.running) {
+        const ip = await window.electronAPI.getLocalIP();
+        setLocalIP(ip);
+      }
+    } catch (err) {
+      console.error('Failed to load M5 webhook status', err);
+    }
+  };
+
+  const handleM5WebhookToggle = async () => {
+    try {
+      if (m5WebhookEnabled) {
+        const result = await window.electronAPI.stopM5Webhook();
+        if (result.success) {
+          setM5WebhookEnabled(false);
+          setM5WebhookRunning(false);
+          setM5StatusMessage('M5 webhook stopped');
+          setTimeout(() => setM5StatusMessage(''), 3000);
+        } else {
+          setM5StatusMessage(`Failed to stop: ${result.error}`);
+        }
+      } else {
+        const result = await window.electronAPI.startM5Webhook();
+        if (result.success) {
+          setM5WebhookEnabled(true);
+          setM5WebhookRunning(true);
+          const ip = await window.electronAPI.getLocalIP();
+          setLocalIP(ip);
+          setM5StatusMessage('M5 webhook started');
+          setTimeout(() => setM5StatusMessage(''), 3000);
+        } else {
+          setM5StatusMessage(`Failed to start: ${result.error}`);
+        }
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setM5StatusMessage(`Error: ${errorMessage}`);
     }
   };
 
@@ -153,6 +203,76 @@ const Settings: React.FC = () => {
           ))}
         </select>
       </div>
+
+      <div className="divider my-6"></div>
+
+      <div className="mb-6">
+        <h2 className="text-xl font-bold mb-4">M5StickC Control</h2>
+        <div className="card bg-base-200 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <label className="label cursor-pointer">
+              <span className="label-text font-semibold">Enable M5 Webhook Server</span>
+              <input
+                type="checkbox"
+                checked={m5WebhookEnabled}
+                onChange={handleM5WebhookToggle}
+                className="checkbox checkbox-primary ml-4"
+              />
+            </label>
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${m5WebhookRunning ? 'bg-success' : 'bg-gray-400'}`}></div>
+              <span className="text-sm text-gray-600">{m5WebhookRunning ? 'Active' : 'Inactive'}</span>
+            </div>
+          </div>
+
+          {m5WebhookRunning && (
+            <div className="mb-4 p-3 bg-info/20 rounded">
+              <p className="text-sm text-info">
+                <strong>Local IP Address:</strong> {localIP}
+              </p>
+              <p className="text-xs text-gray-600 mt-2">
+                Configure this IP address on your M5StickC Plus2
+              </p>
+            </div>
+          )}
+
+          {m5StatusMessage && (
+            <p className={`text-sm mb-4 ${m5StatusMessage.includes('started') || m5StatusMessage.includes('stopped') ? 'text-success' : 'text-error'}`}>
+              {m5StatusMessage}
+            </p>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="table table-sm">
+              <thead>
+                <tr className="bg-base-300">
+                  <th>Button</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Button A (short press)</td>
+                  <td>Start / Stop Recording</td>
+                </tr>
+                <tr className="bg-base-100">
+                  <td>Button B (short press)</td>
+                  <td>Ask GPT</td>
+                </tr>
+                <tr>
+                  <td>Button A (long press)</td>
+                  <td>Clear Content</td>
+                </tr>
+                <tr className="bg-base-100">
+                  <td>Button B (long press)</td>
+                  <td>Clear AI Result</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div className="flex justify-between mt-4">
         <button onClick={handleSave} className="btn btn-primary">
           Save Settings

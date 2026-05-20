@@ -32,7 +32,7 @@ const createWindow = (): void => {
     ? "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: http://localhost:* ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
     : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';";
 
-  const mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     height: 1000,
     width: 1300,
     webPreferences: {
@@ -44,7 +44,9 @@ const createWindow = (): void => {
     },
   });
 
-  mainWindow.webContents.session.webRequest.onHeadersReceived(
+  mainWindow = window;
+
+  window.webContents.session.webRequest.onHeadersReceived(
     (details, callback) => {
       callback({
         responseHeaders: {
@@ -57,9 +59,9 @@ const createWindow = (): void => {
     }
   );
 
-  mainWindow.webContents.session.setPermissionRequestHandler(
+  window.webContents.session.setPermissionRequestHandler(
     (webContents, permission, callback) => {
-      if (permission === "media" && webContents.id === mainWindow.webContents.id) {
+      if (permission === "media" && webContents.id === window.webContents.id) {
         callback(true);
       } else {
         callback(false);
@@ -67,15 +69,15 @@ const createWindow = (): void => {
     }
   );
 
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (url !== mainWindow.webContents.getURL()) {
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  window.webContents.on("will-navigate", (event, url) => {
+    if (url !== window.webContents.getURL()) {
       event.preventDefault();
     }
   });
 
-  mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY + "#/main_window");
-//  mainWindow.webContents.openDevTools();
+  window.loadURL(MAIN_WINDOW_WEBPACK_ENTRY + "#/main_window");
+//  window.webContents.openDevTools();
 };
 
 ipcMain.handle(
@@ -135,7 +137,16 @@ ipcMain.handle(
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on("ready", createWindow);
+app.on("ready", async () => {
+  createWindow();
+  if (store.get("m5webhook_enabled")) {
+    try {
+      await startM5WebhookServer();
+    } catch (err) {
+      console.error("Failed to auto-start M5 webhook server:", err);
+    }
+  }
+});
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the
@@ -158,9 +169,12 @@ app.on("activate", () => {
 // code. You can also put them in separate files and import them here.
 
 import ElectronStore from "electron-store";
+import { createServer, Server as HttpServer } from "http";
+import { networkInterfaces } from "os";
 
 interface StoreSchema {
   config: AppConfig;
+  m5webhook_enabled?: boolean;
 }
 
 interface AppConfig {
@@ -178,6 +192,98 @@ type TypedElectronStore = ElectronStore<StoreSchema> & {
   set: <K extends keyof StoreSchema>(key: K, value: StoreSchema[K]) => void;
   clear: () => void;
 };
+
+// M5 Webhook Server Configuration
+const M5_WEBHOOK_PORT = 7878;
+const M5_WEBHOOK_HOST = "127.0.0.1";
+const ALLOWED_M5_ACTIONS = ["start_recording", "ask_gpt", "clear_content", "clear_ai_result"];
+
+let m5WebhookServer: HttpServer | null = null;
+let mainWindow: BrowserWindow | null = null;
+
+function validateM5Action(action: unknown): action is string {
+  return typeof action === "string" && ALLOWED_M5_ACTIONS.includes(action);
+}
+
+function startM5WebhookServer(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (m5WebhookServer) {
+      console.log("M5 Webhook server already running");
+      resolve();
+      return;
+    }
+
+    m5WebhookServer = createServer((req, res) => {
+      if (req.method === "POST" && req.url === "/webhook") {
+        let body = "";
+        req.on("data", (chunk) => {
+          body += chunk.toString();
+        });
+
+        req.on("end", () => {
+          try {
+            const payload = JSON.parse(body);
+            if (!validateM5Action(payload.action)) {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "Invalid action" }));
+              return;
+            }
+
+            if (mainWindow) {
+              mainWindow.webContents.send("m5-action", payload.action);
+            }
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true }));
+          } catch (err) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid JSON" }));
+          }
+        });
+      } else {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Not found" }));
+      }
+    });
+
+    m5WebhookServer.listen(M5_WEBHOOK_PORT, M5_WEBHOOK_HOST, () => {
+      console.log(`M5 Webhook server listening on ${M5_WEBHOOK_HOST}:${M5_WEBHOOK_PORT}`);
+      resolve();
+    });
+
+    m5WebhookServer.on("error", (err) => {
+      console.error("M5 Webhook server error:", err);
+      m5WebhookServer = null;
+      reject(err);
+    });
+  });
+}
+
+function stopM5WebhookServer(): Promise<void> {
+  return new Promise((resolve) => {
+    if (m5WebhookServer) {
+      m5WebhookServer.close(() => {
+        console.log("M5 Webhook server stopped");
+        m5WebhookServer = null;
+        resolve();
+      });
+    } else {
+      resolve();
+    }
+  });
+}
+
+function getLocalIP(): string {
+  const interfaces = networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] || []) {
+      if (iface.family === "IPv4" && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return "127.0.0.1";
+}
 
 const store = new ElectronStore<StoreSchema>() as TypedElectronStore;
 
@@ -213,6 +319,39 @@ ipcMain.handle("get-config", () => {
 
 ipcMain.handle("set-config", (event, config) => {
   store.set("config", sanitizeConfig(config));
+});
+
+ipcMain.handle("m5webhook-start", async () => {
+  try {
+    await startM5WebhookServer();
+    store.set("m5webhook_enabled", true);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+});
+
+ipcMain.handle("m5webhook-stop", async () => {
+  try {
+    await stopM5WebhookServer();
+    store.set("m5webhook_enabled", false);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+});
+
+ipcMain.handle("m5webhook-get-status", () => {
+  return {
+    running: m5WebhookServer !== null,
+    enabled: store.get("m5webhook_enabled") || false,
+    host: M5_WEBHOOK_HOST,
+    port: M5_WEBHOOK_PORT,
+  };
+});
+
+ipcMain.handle("get-local-ip", () => {
+  return getLocalIP();
 });
 
 ipcMain.handle("parsePDF", async (event, pdfBuffer) => {
@@ -251,7 +390,8 @@ ipcMain.handle("highlightCode", async (event, code, language) => {
   return Prism.highlight(code, Prism.languages[language], language);
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", async () => {
+  await stopM5WebhookServer();
   const config = sanitizeConfig(store.get("config"));
   const apiInfo: AppConfig = {
     ...config,
@@ -259,6 +399,10 @@ app.on("before-quit", () => {
   };
   store.clear();
   store.set("config", apiInfo);
+  const m5WebhookEnabled = store.get("m5webhook_enabled");
+  if (m5WebhookEnabled) {
+    store.set("m5webhook_enabled", m5WebhookEnabled);
+  }
 });
 
 ipcMain.handle("get-system-audio-stream", async () => {
