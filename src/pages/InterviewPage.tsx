@@ -34,7 +34,9 @@ const InterviewPage: React.FC = () => {
   const [userMedia, setUserMedia] = useState<MediaStream | null>(null);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [processor, setProcessor] = useState<ScriptProcessorNode | null>(null);
-  const [autoSubmitTimer, setAutoSubmitTimer] = useState<NodeJS.Timeout | null>(null);
+  const autoSubmitTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isRecordingRef = useRef(false);
+  const liveTranscriptRef = useRef("");
   const aiResponseRef = useRef<HTMLDivElement>(null);
 
   const markdownStyles = `
@@ -119,34 +121,53 @@ const InterviewPage: React.FC = () => {
     let checkTimer: NodeJS.Timeout | null = null;
 
     const handleDeepgramTranscript = (data: any) => {
-      if (data.transcript && data.is_final) {
-        setCurrentText((prev: string) => {
-          const newTranscript = data.transcript.trim();
-          if (!prev.endsWith(newTranscript)) {
-            lastTranscriptTime = Date.now();
-            const updatedText = prev + (prev ? '\n' : '') + newTranscript;
-            
-            if (isAutoGPTEnabled) {
-              if (autoSubmitTimer) {
-                clearTimeout(autoSubmitTimer);
-              }
-              const newTimer = setTimeout(() => {
-                const newContent = updatedText.slice(lastProcessedIndex);
-                if (newContent.trim()) {
-                  handleAskGPTStable(newContent);
-                }
-              }, 2000);
-              setAutoSubmitTimer(newTimer);
-            }
-            
-            return updatedText;
-          }
-          return prev;
-        });
+      if (!isRecordingRef.current || !data.transcript || !data.is_final) {
+        if (!isRecordingRef.current || !data.transcript) {
+          return;
+        }
       }
+
+      const newTranscript = data.transcript.trim();
+      if (!newTranscript) {
+        return;
+      }
+
+      setCurrentText((prev: string) => {
+        const previousLiveTranscript = liveTranscriptRef.current;
+        const baseText = previousLiveTranscript
+          ? prev.slice(0, Math.max(0, prev.length - previousLiveTranscript.length))
+          : prev;
+        const separator = baseText && !baseText.endsWith('\n') ? '\n' : '';
+        const updatedText = baseText + separator + newTranscript;
+
+        liveTranscriptRef.current = data.is_final ? "" : newTranscript;
+        lastTranscriptTime = Date.now();
+
+        if (isAutoGPTEnabled) {
+          if (autoSubmitTimerRef.current) {
+            clearTimeout(autoSubmitTimerRef.current);
+          }
+          const newTimer = setTimeout(() => {
+            if (!isRecordingRef.current) {
+              return;
+            }
+            const newContent = updatedText.slice(lastProcessedIndex);
+            if (newContent.trim()) {
+              handleAskGPTStable(newContent);
+            }
+          }, 2000);
+          autoSubmitTimerRef.current = newTimer;
+        }
+
+        return updatedText;
+      });
     };
 
     const checkAndSubmit = () => {
+      if (!isRecordingRef.current) {
+        return;
+      }
+
       if (isAutoGPTEnabled && Date.now() - lastTranscriptTime >= 2000) {
         const newContent = currentText.slice(lastProcessedIndex);
         if (newContent.trim()) {
@@ -164,6 +185,10 @@ const InterviewPage: React.FC = () => {
       if (checkTimer) {
         clearTimeout(checkTimer);
       }
+      if (autoSubmitTimerRef.current) {
+        clearTimeout(autoSubmitTimerRef.current);
+      }
+      liveTranscriptRef.current = "";
     };
   }, [isAutoGPTEnabled, lastProcessedIndex, currentText, handleAskGPTStable, setCurrentText, setLastProcessedIndex]);
 
@@ -238,6 +263,8 @@ const InterviewPage: React.FC = () => {
         window.electronAPI.sendAudioToDeepgram(audioData.buffer);
       };
 
+      isRecordingRef.current = true;
+      liveTranscriptRef.current = "";
       setIsRecording(true);
     } catch (err: unknown) {
       if (localProcessor) {
@@ -258,10 +285,19 @@ const InterviewPage: React.FC = () => {
       } else {
         setError("Failed to start recording. Please check permissions or try again.");
       }
+
+      isRecordingRef.current = false;
+      liveTranscriptRef.current = "";
     }
   };
 
   const stopRecording = () => {
+    isRecordingRef.current = false;
+    liveTranscriptRef.current = "";
+    if (autoSubmitTimerRef.current) {
+      clearTimeout(autoSubmitTimerRef.current);
+      autoSubmitTimerRef.current = null;
+    }
     if (userMedia) {
       userMedia.getTracks().forEach((track) => track.stop());
     }
@@ -331,6 +367,20 @@ const InterviewPage: React.FC = () => {
     };
   };
 
+  const conversationPairs = conversations.reduce<Array<{ user?: string; assistant?: string }>>((pairs, message) => {
+    if (message.role === "user") {
+      pairs.push({ user: message.content });
+      return pairs;
+    }
+
+    const lastPair = pairs[pairs.length - 1];
+    if (lastPair) {
+      lastPair.assistant = message.content;
+    }
+
+    return pairs;
+  }, []);
+
   return (
     <div className="flex flex-col h-[calc(100vh-2.5rem)] p-2 space-y-2">
       <style>{markdownStyles}</style>
@@ -374,12 +424,40 @@ const InterviewPage: React.FC = () => {
             ref={aiResponseRef}
             className="flex-1 overflow-auto bg-base-100 p-2 rounded mb-1 min-h-[80px]"
           >
-            <h2 className="text-lg font-bold mb-1">AI Response:</h2>
-            <ReactMarkdown className="whitespace-pre-wrap markdown-body" components={{
-              p: ({node, ...props}) => <p style={{whiteSpace: 'pre-wrap'}} {...props} />
-            }}>
-              {displayedAiResult}
-            </ReactMarkdown>
+            <h2 className="text-lg font-bold mb-3">Conversation Trace:</h2>
+            <div className="space-y-3">
+              {conversationPairs.length === 0 ? (
+                <div className="text-sm text-base-content/60 italic">
+                  The conversation will appear here with soft color cues.
+                </div>
+              ) : (
+                conversationPairs.map((pair, index) => (
+                  <div key={`${index}-${pair.user || ""}-${pair.assistant || ""}`} className="space-y-2 rounded-lg border border-base-300 p-3">
+                    {pair.user && (
+                      <div className="rounded-md border-l-4 border-amber-300 bg-amber-50/70 px-3 py-2 text-sm text-base-content">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">Tu texto</div>
+                        <div className="whitespace-pre-wrap underline decoration-amber-200 decoration-2 underline-offset-4">
+                          {pair.user}
+                        </div>
+                      </div>
+                    )}
+                    {pair.assistant && (
+                      <div className="rounded-md border-l-4 border-sky-300 bg-sky-50/70 px-3 py-2 text-sm text-base-content">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-sky-700">Respuesta GPT</div>
+                        <ReactMarkdown
+                          className="whitespace-pre-wrap markdown-body underline decoration-sky-200 decoration-2 underline-offset-4"
+                          components={{
+                            p: ({node, ...props}) => <p style={{whiteSpace: 'pre-wrap'}} {...props} />
+                          }}
+                        >
+                          {pair.assistant}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
           <div className="flex justify-between mt-1">
             <button

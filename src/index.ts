@@ -617,11 +617,11 @@ ipcMain.handle("start-deepgram", async (event, config) => {
     const deepgram = createClient(config.deepgram_key);
     deepgramConnection = deepgram.listen.live({
       punctuate: true,
-      interim_results: false,
+      interim_results: true,
       model: "general",
       encoding: "linear16",
       sample_rate: 16000,
-      endpointing: 1500,
+      endpointing: 300,
       ...(primaryLanguage && primaryLanguage !== "auto"
         ? { language: primaryLanguage }
         : {}),
@@ -640,7 +640,6 @@ ipcMain.handle("start-deepgram", async (event, config) => {
       (data: any) => {
         if (
           data &&
-          data.is_final &&
           data.channel &&
           data.channel.alternatives &&
           data.channel.alternatives[0]
@@ -649,7 +648,7 @@ ipcMain.handle("start-deepgram", async (event, config) => {
           if (transcript) {
             event.sender.send("deepgram-transcript", {
               transcript,
-              is_final: true,
+              is_final: Boolean(data.is_final),
             });
           }
         }
