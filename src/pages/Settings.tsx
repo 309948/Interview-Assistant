@@ -14,14 +14,14 @@ const Settings: React.FC = () => {
   const [primaryLanguage, setPrimaryLanguage] = useState('auto');
   const [secondaryLanguage, setSecondaryLanguage] = useState('');
   const [deepgramApiKey, setDeepgramApiKey] = useState('');
-  const [m5WebhookEnabled, setM5WebhookEnabled] = useState(false);
-  const [m5WebhookRunning, setM5WebhookRunning] = useState(false);
-  const [localIP, setLocalIP] = useState('');
+  const [m5Connected, setM5Connected] = useState(false);
+  const [m5DeviceName, setM5DeviceName] = useState('');
+  const [m5Connecting, setM5Connecting] = useState(false);
   const [m5StatusMessage, setM5StatusMessage] = useState('');
 
   useEffect(() => {
     loadConfig();
-    loadM5WebhookStatus();
+    loadM5BluetoothStatus();
   }, []);
 
   const loadConfig = async () => {
@@ -40,46 +40,39 @@ const Settings: React.FC = () => {
     }
   };
 
-  const loadM5WebhookStatus = async () => {
+  const loadM5BluetoothStatus = async () => {
     try {
-      const status = await window.electronAPI.getM5WebhookStatus();
-      setM5WebhookEnabled(status.enabled);
-      setM5WebhookRunning(status.running);
-      if (status.running) {
-        const ip = await window.electronAPI.getLocalIP();
-        setLocalIP(ip);
-      }
+      const status = await window.electronAPI.getM5BluetoothStatus();
+      setM5Connected(status.connected);
+      setM5DeviceName(status.deviceName || '');
     } catch (err) {
-      console.error('Failed to load M5 webhook status', err);
+      console.error('Failed to load M5 bluetooth status', err);
     }
   };
 
-  const handleM5WebhookToggle = async () => {
+  const handleM5BluetoothToggle = async () => {
     try {
-      if (m5WebhookEnabled) {
-        const result = await window.electronAPI.stopM5Webhook();
-        if (result.success) {
-          setM5WebhookEnabled(false);
-          setM5WebhookRunning(false);
-          setM5StatusMessage('M5 webhook stopped');
-          setTimeout(() => setM5StatusMessage(''), 3000);
-        } else {
-          setM5StatusMessage(`Failed to stop: ${result.error}`);
-        }
+      if (m5Connected) {
+        await window.electronAPI.disconnectM5Bluetooth();
+        setM5Connected(false);
+        setM5DeviceName('');
+        setM5StatusMessage('M5 disconnected');
+        setTimeout(() => setM5StatusMessage(''), 3000);
       } else {
-        const result = await window.electronAPI.startM5Webhook();
+        setM5Connecting(true);
+        const result = await window.electronAPI.connectM5Bluetooth();
+        setM5Connecting(false);
         if (result.success) {
-          setM5WebhookEnabled(true);
-          setM5WebhookRunning(true);
-          const ip = await window.electronAPI.getLocalIP();
-          setLocalIP(ip);
-          setM5StatusMessage('M5 webhook started');
+          setM5Connected(true);
+          setM5DeviceName(result.deviceName || 'M5-Controller');
+          setM5StatusMessage('M5 connected');
           setTimeout(() => setM5StatusMessage(''), 3000);
         } else {
-          setM5StatusMessage(`Failed to start: ${result.error}`);
+          setM5StatusMessage(`Failed to connect: ${result.error}`);
         }
       }
     } catch (err) {
+      setM5Connecting(false);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setM5StatusMessage(`Error: ${errorMessage}`);
     }
@@ -210,37 +203,36 @@ const Settings: React.FC = () => {
         <h2 className="text-xl font-bold mb-4">M5StickC Control</h2>
         <div className="card bg-base-200 p-4">
           <div className="flex items-center justify-between mb-4">
-            <label className="label cursor-pointer">
-              <span className="label-text font-semibold">Enable M5 Webhook Server</span>
-              <input
-                type="checkbox"
-                checked={m5WebhookEnabled}
-                onChange={handleM5WebhookToggle}
-                className="checkbox checkbox-primary ml-4"
-              />
-            </label>
+            <button
+              onClick={handleM5BluetoothToggle}
+              disabled={m5Connecting}
+              className={`btn btn-sm ${m5Connected ? 'btn-error' : 'btn-primary'}`}
+            >
+              {m5Connecting ? 'Connecting...' : m5Connected ? 'Disconnect' : 'Connect M5 (Bluetooth)'}
+            </button>
             <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${m5WebhookRunning ? 'bg-success' : 'bg-gray-400'}`}></div>
-              <span className="text-sm text-gray-600">{m5WebhookRunning ? 'Active' : 'Inactive'}</span>
+              <div className={`w-3 h-3 rounded-full ${m5Connected ? 'bg-success' : 'bg-gray-400'}`}></div>
+              <span className="text-sm text-gray-600">{m5Connected ? 'Connected' : 'Disconnected'}</span>
             </div>
           </div>
 
-          {m5WebhookRunning && (
+          {m5Connected && (
             <div className="mb-4 p-3 bg-info/20 rounded">
               <p className="text-sm text-info">
-                <strong>Local IP Address:</strong> {localIP}
-              </p>
-              <p className="text-xs text-gray-600 mt-2">
-                Configure this IP address on your M5StickC Plus2
+                <strong>Device:</strong> {m5DeviceName || 'M5-Controller'}
               </p>
             </div>
           )}
 
           {m5StatusMessage && (
-            <p className={`text-sm mb-4 ${m5StatusMessage.includes('started') || m5StatusMessage.includes('stopped') ? 'text-success' : 'text-error'}`}>
+            <p className={`text-sm mb-4 ${m5StatusMessage.includes('connected') || m5StatusMessage.includes('disconnected') ? 'text-success' : 'text-error'}`}>
               {m5StatusMessage}
             </p>
           )}
+
+          <p className="text-xs text-gray-500 mb-4">
+            M5StickC Plus2 debe estar encendido y advirtiendo BLE como "M5-Controller". Al pulsar "Connect" Electron escaneara y emparejara automaticamente.
+          </p>
 
           <div className="overflow-x-auto">
             <table className="table table-sm">
